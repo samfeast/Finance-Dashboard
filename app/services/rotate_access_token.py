@@ -1,4 +1,5 @@
 import logging
+import time
 
 from app.database.repository import Repository
 from app.integrations.truelayer.client import TrueLayerClient
@@ -27,6 +28,7 @@ def rotate_access_token(
         access_token_expiry=refreshed.access_token_expiry,
         refresh_token=refreshed.refresh_token,
         refresh_token_expired=False,
+        last_updated=int(time.time()),
     )
 
     with repo.transaction():

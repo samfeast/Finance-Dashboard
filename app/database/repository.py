@@ -38,14 +38,16 @@ class Repository:
                     access_token, 
                     access_token_expiry, 
                     refresh_token, 
-                    refresh_token_expired
+                    refresh_token_expired,
+                    last_updated
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(provider_id) DO UPDATE SET
                     access_token = excluded.access_token,
                     access_token_expiry = excluded.access_token_expiry,
                     refresh_token = excluded.refresh_token,
-                    refresh_token_expired = excluded.refresh_token_expired
+                    refresh_token_expired = excluded.refresh_token_expired,
+                    last_updated = excluded.last_updated
                 """,
                 (
                     data.provider_id,
@@ -53,6 +55,7 @@ class Repository:
                     data.access_token_expiry,
                     data.refresh_token,
                     data.refresh_token_expired,
+                    data.last_updated,
                 ),
             )
         except sqlite3.Error as e:
@@ -100,7 +103,10 @@ class Repository:
     def log_refresh_token_expiry(self, provider_id: str) -> None:
         try:
             self._conn.execute(
-                """UPDATE tokens SET refresh_token_expired = 1 WHERE provider_id = ?""",
+                """UPDATE tokens SET 
+                    refresh_token_expired = 1,
+                    last_updated = CAST(strftime('%s', 'now') AS INTEGER) 
+                WHERE provider_id = ?""",
                 (provider_id,),
             )
         except sqlite3.Error as e:
@@ -123,6 +129,7 @@ class Repository:
                 access_token_expiry=row["access_token_expiry"],
                 refresh_token=row["refresh_token"],
                 refresh_token_expired=row["refresh_token_expired"] == 1,
+                last_updated=row["last_updated"],
             )
             for row in data
         ]
@@ -148,4 +155,5 @@ class Repository:
             access_token_expiry=data["access_token_expiry"],
             refresh_token=data["refresh_token"],
             refresh_token_expired=data["refresh_token_expired"] == 1,
+            last_updated=data["last_updated"],
         )

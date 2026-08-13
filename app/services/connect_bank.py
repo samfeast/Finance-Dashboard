@@ -1,4 +1,5 @@
 import logging
+import time
 
 from app.database.repository import Repository
 from app.integrations.truelayer.client import TrueLayerClient
@@ -20,6 +21,7 @@ def connect_bank(
         access_token_expiry=anon_tokens.access_token_expiry,
         refresh_token=anon_tokens.refresh_token,
         refresh_token_expired=False,
+        last_updated=int(time.time()),
     )
 
     with repo.transaction():

@@ -8,3 +8,4 @@ class Tokens:
     access_token_expiry: int
     refresh_token: str
     refresh_token_expired: bool
+    last_updated: int

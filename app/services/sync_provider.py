@@ -27,10 +27,16 @@ def sync_provider(repo: Repository, truelayer: TrueLayerClient, tokens: Tokens) 
         _get_account_data(repo, truelayer, tokens.provider_id)
 
     else:
-        logger.warning("Refresh token has expired, user must reauthenticate")
+        logger.warning(
+            "Refresh token was logged as expired at %s, user must reauthenticate",
+            tokens.last_updated,
+        )
         # Don't attempt refresh if token is already logged as expired
         raise AuthExpiredException(
-            "Refresh token has expired, user must reauthenticate"
+            (
+                "Refresh token was logged as expired at %s, user must reauthenticate",
+                tokens.last_updated,
+            )
         )
 
 

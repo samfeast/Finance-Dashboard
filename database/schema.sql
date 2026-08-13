@@ -6,7 +6,8 @@ CREATE TABLE tokens (
     access_token TEXT NOT NULL,
     access_token_expiry INTEGER NOT NULL,
     refresh_token TEXT NOT NULL,
-    refresh_token_expired INTEGER NOT NULL 
+    refresh_token_expired INTEGER NOT NULL,
+    last_updated INTEGER NOT NULL
 );
 CREATE TABLE account_metadata (
     account_id TEXT PRIMARY KEY,

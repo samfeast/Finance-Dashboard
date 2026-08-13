@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 import os
 import time
@@ -9,6 +10,7 @@ from app.config import ENV_PATH
 from app.integrations.truelayer.exceptions import AuthExpiredException, TrueLayerError
 from app.models.account_metadata import AccountMetadata
 from app.models.anonymous_tokens import AnonymousTokens
+from app.models.balance_snapshot import BalanceSnapshot
 from app.models.connection_metadata import ConnectionMetadata
 
 load_dotenv(ENV_PATH)
@@ -79,12 +81,6 @@ class TrueLayerClient:
 
         data = response.json()
 
-        if len(data["results"]) != 1:
-            logger.error(
-                "Unexpected number of metadata results: %s", len(data["results"])
-            )
-            raise RuntimeError("Unexpected number of metadata results")
-
         result = data["results"][0]
         provider = result["provider"]
         consent_expiry_timestamp = int(
@@ -141,3 +137,48 @@ class TrueLayerClient:
             )
             for account in data["results"]
         ]
+
+    def get_account_balance(self, account_id: str) -> BalanceSnapshot:
+        logger.info("Fetching account balance for acccount id %r", account_id)
+        try:
+            response = requests.get(
+                f"https://api.truelayer.com/data/v1/accounts/{account_id}/balance",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "X-PSU-IP": self.ip_addr,
+                },
+            )
+
+            if response.status_code == 400:
+                logger.warning(
+                    "Failed to get account balance - access token has expired"
+                )
+                raise AuthExpiredException(
+                    "Failed to get account balance - access token has expired"
+                )
+
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise TrueLayerError(
+                ("Failed to get account balance for account id %r", account_id)
+            ) from e
+
+        data = response.json(parse_float=Decimal)
+
+        result = data["results"][0]
+        update_timestamp = timestamp = int(
+            datetime.fromisoformat(result["update_timestamp"]).timestamp()
+        )
+
+        logger.info(
+            "Successfully fetched account balance for account id %r", account_id
+        )
+        return BalanceSnapshot(
+            account_id=account_id,
+            snapshot_timestamp=int(time.time()),
+            update_timestamp=update_timestamp,
+            currency=result["currency"],
+            available=result["available"],
+            current=result["current"],
+            overdraft=result["overdraft"],
+        )

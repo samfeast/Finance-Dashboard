@@ -4,6 +4,7 @@ from sqlite3 import Connection
 import sqlite3
 
 from app.models.account_metadata import AccountMetadata
+from app.models.balance_snapshot import BalanceSnapshot
 from app.models.tokens import Tokens
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ class Repository:
                 f"Failed to store account metadata for {data.account_id!r}"
             ) from e
 
-    def log_refresh_token_expiry(self, provider_id: str) -> None:
+    def store_refresh_token_expiry(self, provider_id: str) -> None:
         try:
             self._conn.execute(
                 """UPDATE tokens SET 
@@ -112,6 +113,33 @@ class Repository:
         except sqlite3.Error as e:
             raise RepositoryError(
                 f"Failed to record refresh token expiry for {provider_id!r}"
+            ) from e
+
+    def store_balance_snapshot(self, data: BalanceSnapshot) -> None:
+        try:
+            logger.info(f"{data.account_id} -- {data.snapshot_timestamp}")
+            self._conn.execute(
+                """INSERT INTO balance_snapshots (
+                    account_id,
+                    snapshot_timestamp,
+                    update_timestamp,
+                    available_balance_1000x,
+                    current_balance_1000x,
+                    overdraft_1000x
+                )
+                VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    data.account_id,
+                    data.snapshot_timestamp,
+                    data.update_timestamp,
+                    int(data.available * 1000),
+                    int(data.current * 1000),
+                    int(data.overdraft * 1000),
+                ),
+            )
+        except sqlite3.Error as e:
+            raise RepositoryError(
+                f"Failed to store balance snapshot for account id {data.account_id!r}"
             ) from e
 
     def get_all_provider_tokens(self) -> list[Tokens]:
@@ -157,3 +185,29 @@ class Repository:
             refresh_token_expired=data["refresh_token_expired"] == 1,
             last_updated=data["last_updated"],
         )
+
+    def get_provider_accounts(self, provider_id: str) -> list[AccountMetadata]:
+        try:
+            cur = self._conn.cursor()
+            cur.execute(
+                """SELECT * FROM account_metadata WHERE provider_id = ?""",
+                (provider_id,),
+            )
+            data = cur.fetchall()
+        except sqlite3.Error as e:
+            raise RepositoryError(
+                f"Failed to get account metadata for {provider_id!r}"
+            ) from e
+
+        return [
+            AccountMetadata(
+                account_id=row["account_id"],
+                account_type=row["account_type"],
+                display_name=row["display_name"],
+                currency=row["currency"],
+                account_number=row["account_number"],
+                sort_code=row["sort_code"],
+                provider_id=row["provider_id"],
+            )
+            for row in data
+        ]

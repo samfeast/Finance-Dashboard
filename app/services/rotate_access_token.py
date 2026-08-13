@@ -16,7 +16,7 @@ def rotate_access_token(
         refreshed = truelayer.refresh_access_token(tokens.refresh_token)
     except AuthExpiredException:
         with repo.transaction():
-            repo.log_refresh_token_expiry(tokens.provider_id)
+            repo.store_refresh_token_expiry(tokens.provider_id)
         logger.info("Refresh token expiry logged for %r", tokens.provider_id)
         raise AuthExpiredException(
             "Refresh token has expired, user must reauthenticate"

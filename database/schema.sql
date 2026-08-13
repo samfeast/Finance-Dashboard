@@ -21,10 +21,10 @@ CREATE TABLE account_metadata (
 CREATE TABLE balance_snapshots (
     account_id TEXT NOT NULL,
     snapshot_timestamp INTEGER NOT NULL,
-    available_balance INTEGER NOT NULL,
-    current_balance_minor INTEGER NOT NULL,
-    overdraft_minor INTEGER NOT NULL,
-    scale INTEGER NOT NULL,
+    update_timestamp INTEGER NOT NULL,
+    available_balance_1000x INTEGER NOT NULL,
+    current_balance_1000x INTEGER NOT NULL,
+    overdraft_1000x INTEGER NOT NULL,
     PRIMARY KEY (account_id, snapshot_timestamp),
     FOREIGN KEY (account_id) REFERENCES account_metadata(account_id)
 );

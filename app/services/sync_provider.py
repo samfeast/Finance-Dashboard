@@ -46,3 +46,9 @@ def _access_token_valid(access_token_expiry: int) -> bool:
 
 def _get_account_data(repo: Repository, truelayer: TrueLayerClient, provider_id: str):
     logger.info("Getting all account data for %r", provider_id)
+    accounts = repo.get_provider_accounts(provider_id)
+    for account in accounts:
+        balance_snapshot = truelayer.get_account_balance(account.account_id)
+        logger.info("Storing balance snapshot for account id %r", account.account_id)
+        with repo.transaction():
+            repo.store_balance_snapshot(balance_snapshot)

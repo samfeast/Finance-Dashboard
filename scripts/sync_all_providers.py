@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    logger.info("Running sync_banks script")
+    logger.info("Running sync_all_providers script")
     with DatabaseConnection(DATABASE_PATH) as conn:
         repo = Repository(conn)
         ipify = IPifyClient()

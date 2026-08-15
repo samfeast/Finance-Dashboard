@@ -12,6 +12,7 @@ from app.models.account_metadata import AccountMetadata
 from app.models.anonymous_tokens import AnonymousTokens
 from app.models.balance_snapshot import BalanceSnapshot
 from app.models.connection_metadata import ConnectionMetadata
+from app.models.transaction import Transaction
 
 load_dotenv(ENV_PATH)
 
@@ -166,9 +167,12 @@ class TrueLayerClient:
         data = response.json(parse_float=Decimal)
 
         result = data["results"][0]
-        update_timestamp = timestamp = int(
-            datetime.fromisoformat(result["update_timestamp"]).timestamp()
-        )
+
+        update_timestamp = None
+        if "update_timestamp" in result:
+            update_timestamp = int(
+                datetime.fromisoformat(result["update_timestamp"]).timestamp()
+            )
 
         logger.info(
             "Successfully fetched account balance for account id %r", account_id
@@ -178,7 +182,65 @@ class TrueLayerClient:
             snapshot_timestamp=int(time.time()),
             update_timestamp=update_timestamp,
             currency=result["currency"],
-            available=result["available"],
+            available=result.get("available"),
             current=result["current"],
-            overdraft=result["overdraft"],
+            overdraft=result.get("overdraft"),
         )
+
+    def get_account_transactions(
+        self, account_id: str, start_timestamp: int, end_timestamp: int
+    ) -> list[Transaction]:
+        start_str = datetime.fromtimestamp(start_timestamp).strftime("%Y-%m-%d")
+        end_str = datetime.fromtimestamp(end_timestamp).strftime("%Y-%m-%d")
+        logger.info(
+            "Fetching transactions from %s to %s for account id %r",
+            start_str,
+            end_str,
+            account_id,
+        )
+        try:
+            response = requests.get(
+                f"https://api.truelayer.com/data/v1/accounts/{account_id}/transactions?from={start_str}&to={end_str}",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "X-PSU-IP": self.ip_addr,
+                },
+            )
+
+            if response.status_code == 400:
+                logger.warning(
+                    "Failed to get transactions for account id %r - access token has expired",
+                    account_id,
+                )
+                raise AuthExpiredException(
+                    f"Failed to get transactions for account {account_id} - access token has expired"
+                )
+
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise TrueLayerError(
+                f"Failed to get transactions for account {account_id}"
+            ) from e
+
+        data = response.json(parse_float=Decimal)
+
+        logger.info("Successfully fetched transactions for account id %r", account_id)
+
+        return [
+            Transaction(
+                transaction_id=transaction["normalised_provider_transaction_id"],
+                account_id=account_id,
+                timestamp=int(
+                    datetime.fromisoformat(transaction["timestamp"]).timestamp()
+                ),
+                description=transaction["description"],
+                amount=transaction["amount"],
+                currency=transaction["currency"],
+                transaction_type=transaction["transaction_type"],
+                category=transaction["transaction_category"],
+                classification=transaction["transaction_classification"],
+                merchant=transaction.get("merchant_name"),
+                running_balance=transaction["running_balance"]["amount"],
+            )
+            for transaction in data["results"]
+        ]

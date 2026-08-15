@@ -6,8 +6,8 @@ from decimal import Decimal
 class BalanceSnapshot:
     account_id: str
     snapshot_timestamp: int
-    update_timestamp: int
+    update_timestamp: int | None
     currency: str
-    available: Decimal
+    available: Decimal | None
     current: Decimal
-    overdraft: Decimal
+    overdraft: Decimal | None

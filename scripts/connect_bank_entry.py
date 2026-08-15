@@ -20,7 +20,8 @@ print(
 
 def main():
     logger.info("Running connect_bank_entry script")
-    anon_tokens = exchange_auth_code("")
+    auth_code = input("Auth code: ")
+    anon_tokens = exchange_auth_code(auth_code)
     with DatabaseConnection(DATABASE_PATH) as conn:
         repo = Repository(conn)
         ipify = IPifyClient()

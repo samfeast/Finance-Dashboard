@@ -6,6 +6,7 @@ import sqlite3
 from app.models.account_metadata import AccountMetadata
 from app.models.balance_snapshot import BalanceSnapshot
 from app.models.tokens import Tokens
+from app.models.transaction import Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,6 @@ class Repository:
 
     def store_balance_snapshot(self, data: BalanceSnapshot) -> None:
         try:
-            logger.info(f"{data.account_id} -- {data.snapshot_timestamp}")
             self._conn.execute(
                 """INSERT INTO balance_snapshots (
                     account_id,
@@ -132,15 +132,65 @@ class Repository:
                     data.account_id,
                     data.snapshot_timestamp,
                     data.update_timestamp,
-                    int(data.available * 1000),
+                    int(data.available * 1000) if data.available is not None else None,
                     int(data.current * 1000),
-                    int(data.overdraft * 1000),
+                    int(data.overdraft * 1000) if data.overdraft is not None else None,
                 ),
             )
         except sqlite3.Error as e:
             raise RepositoryError(
                 f"Failed to store balance snapshot for account id {data.account_id!r}"
             ) from e
+
+    def store_transactions(self, data: list[Transaction]) -> None:
+        try:
+            self._conn.executemany(
+                """INSERT INTO transactions (
+                        transaction_id,
+                        account_id,
+                        transaction_timestamp,
+                        transaction_description,
+                        amount_1000x,
+                        currency,
+                        transaction_type,
+                        category,
+                        merchant,
+                        running_balance_1000x
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(transaction_id) DO NOTHING""",
+                [
+                    (
+                        transaction.transaction_id,
+                        transaction.account_id,
+                        transaction.timestamp,
+                        transaction.description,
+                        int(transaction.amount * 1000),
+                        transaction.currency,
+                        transaction.transaction_type,
+                        transaction.category,
+                        transaction.merchant,
+                        int(transaction.running_balance * 1000),
+                    )
+                    for transaction in data
+                ],
+            )
+            transaction_classification_flattened = [
+                (t.transaction_id, classifier)
+                for t in data
+                for classifier in t.classification
+            ]
+            self._conn.executemany(
+                """INSERT INTO transaction_classification (
+                    transaction_id,
+                    classification
+                )
+                VALUES (?, ?)
+                ON CONFLICT(transaction_id, classification) DO NOTHING""",
+                transaction_classification_flattened,
+            )
+        except sqlite3.Error as e:
+            raise RepositoryError(f"Failed to store transactions") from e
 
     def get_all_provider_tokens(self) -> list[Tokens]:
         try:
